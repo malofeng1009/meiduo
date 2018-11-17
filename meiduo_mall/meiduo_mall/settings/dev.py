@@ -31,7 +31,7 @@ SECRET_KEY = '&+q5st03g9)81))xki7gyznnu_3f$15ovxwq@i2h0(cinq3v$4'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['api.meiduo.site']
+ALLOWED_HOSTS = ['api.meiduo.site', '127.0.0.1']
 
 
 # Application definition
@@ -45,6 +45,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    'ckeditor',  # 富文本编辑器
+    'ckeditor_uploader',  # 富文本编辑器上传图片模块
+    'django_crontab',  # 定时任务
     'users.apps.UsersConfig',
     'verifications.apps.VerificationsConfig',
     'oauth.apps.OauthConfig',
@@ -69,7 +72,7 @@ ROOT_URLCONF = 'meiduo_mall.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -123,7 +126,14 @@ CACHES = {
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
-    }
+    },
+    "history": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/3",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    },
 }
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "session"
@@ -244,23 +254,22 @@ CORS_ORIGIN_WHITELIST = (
 )
 CORS_ALLOW_CREDENTIALS = True  # 允许携带cookie
 
-# QQ登录参数
+
+# 用于QQ登录的配置信息
 QQ_APP_ID = '101474184'
 QQ_APP_KEY = 'c6ce949e04e12ecc909ae6a8b09b637c'
 QQ_REDIRECT_URL = 'http://www.meiduo.site:8080/oauth_callback.html'
+
 QQ_STATE = '/'
+
 
 # Email
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.163.com'
 EMAIL_PORT = 25
-#发送邮件的邮箱
-EMAIL_HOST_USER = 'malofeng@163.com'
-DEFAULT_FROM_EMAIL  = 'malofeng@163.com'
-#在邮箱中设置的客户端授权密码
-EMAIL_HOST_PASSWORD = 'trlj0521'
-#收件人看到的发件人
-EMAIL_FROM = '美多商城<malofeng@163.com>'
+EMAIL_HOST_USER = 'meiduo_admin@163.com'
+EMAIL_HOST_PASSWORD = 'meiduo123'
+EMAIL_FROM = '美多商城<meiduo_admin@163.com>'
 
 
 # DRF扩展
@@ -270,3 +279,33 @@ REST_FRAMEWORK_EXTENSIONS = {
     # 缓存存储
     'DEFAULT_USE_CACHE': 'default',
 }
+
+
+# FastDFS
+FDFS_CLIENT_CONF = os.path.join(BASE_DIR, 'utils/fastdfs/client.conf')
+FDFS_BASE_URL = 'http://127.0.0.1:8888/'
+
+# django文件存储
+DEFAULT_FILE_STORAGE = 'meiduo_mall.utils.fastdfs.storage.FastDFSStorage'
+
+# 富文本编辑器ckeditor配置
+CKEDITOR_CONFIGS = {
+    'default': {
+        'toolbar': 'full',  # 工具条功能
+        'height': 300,  # 编辑器高度
+        # 'width': 300,  # 编辑器宽
+    },
+}
+CKEDITOR_UPLOAD_PATH = ''  # 上传图片保存路径，使用了FastDFS，所以此处设为''
+
+# 生成的静态html文件保存目录
+GENERATED_STATIC_HTML_FILES_DIR = os.path.join(os.path.dirname(os.path.dirname(BASE_DIR)), 'front_end_pc')
+
+# 定时任务
+CRONJOBS = [
+    # 每5分钟执行一次生成主页静态文件
+    ('*/5 * * * *', 'contents.crons.generate_static_index_html', '>> /home/python/Desktop/meiduo/meiduo_mall/logs/crontab.log')
+]
+
+# 解决crontab中文问题
+CRONTAB_COMMAND_PREFIX = 'LANG_ALL=zh_cn.UTF-8'

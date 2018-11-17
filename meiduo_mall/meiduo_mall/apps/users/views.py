@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from django_redis import get_redis_connection
 from rest_framework.decorators import action
 from rest_framework.generics import CreateAPIView, GenericAPIView, RetrieveAPIView, UpdateAPIView
 from rest_framework.response import Response
@@ -9,6 +10,8 @@ import re
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import GenericViewSet
 
+from goods.models import SKU
+from goods.serializers import SKUSerializer
 from users import constants
 from . import serializers
 from .models import User
@@ -167,6 +170,7 @@ class EmailView(UpdateAPIView):
 
 class EmailVerifyView(APIView):
     """邮箱验证"""
+
     def get(self, request):
         # 获取token
         token = request.query_params.get('token')
@@ -251,6 +255,36 @@ class AddressViewSet(mixins.CreateModelMixin, mixins.UpdateModelMixin, GenericVi
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+
+class UserHistoryView(mixins.CreateModelMixin, GenericAPIView):
+    '''
+    用户历史记录
+    '''
+    permission_classes = [IsAuthenticated]
+    serializer_class = serializers.AddUsrHistorySerializer
+
+    def post(self, request):
+        '''保存'''
+        return self.create(request)
+
+    def get(self, request):
+        user_id = request.user.id
+        # 查询 redis 数据库
+        redis_conn = get_redis_connection('history')
+        sku_id_list = redis_conn.lrange('history_%s' % user_id, 0, constants.USER_BROWSING_HISTORY_COUNTS_LIMIT)
+
+        # 根据 redis 返回的sku id 查询数据
+        # SKU.objects.filter(id__in=sku_id_list)
+        sku_list = []
+        for sku_id in sku_id_list:
+            sku = SKU.objects.get(id=sku_id)
+            sku_list.append(sku)
+
+        # 使用序列化器序列化
+        serializer = SKUSerializer(sku_list, many=True)
+        return Response(serializer.data)
+
 
 
 
