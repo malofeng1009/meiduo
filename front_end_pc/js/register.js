@@ -173,7 +173,8 @@ var vm = new Vue({
 						sms_code: this.sms_code,
 						allow: this.allow.toString()
 					}, {
-						responseType: 'json'
+						responseType: 'json',
+						withCredentials: true
 					})
 					.then(response => {
 						// 保存后端返回的token数据

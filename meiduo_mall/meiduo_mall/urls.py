@@ -15,13 +15,19 @@ Including another URLconf
 """
 from django.conf.urls import url, include
 from django.contrib import admin
+import xadmin
 
 urlpatterns = [
-    url(r'^admin/', admin.site.urls),
+    # url(r'^admin/', admin.site.urls),
+    url(r'xadmin/', include(xadmin.site.urls)),
     url(r'^', include('verifications.urls')),
     url(r'^', include('users.urls')),
     url(r'oauth/', include('oauth.urls')),
     url(r'', include('areas.urls')),
     url(r'^ckeditor/', include('ckeditor_uploader.urls')),
     url(r'^', include('goods.urls')),
+    url(r'^', include('carts.urls')),
+    url(r'^', include('orders.urls')),
+    url(r'^', include('payment.urls')),
+
 ]

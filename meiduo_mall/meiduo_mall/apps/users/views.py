@@ -1,6 +1,5 @@
 from django.shortcuts import render
 from django_redis import get_redis_connection
-from rest_framework.decorators import action
 from rest_framework.generics import CreateAPIView, GenericAPIView, RetrieveAPIView, UpdateAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -8,15 +7,18 @@ from rest_framework import status
 from rest_framework import mixins
 import re
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action
 from rest_framework.viewsets import GenericViewSet
+from rest_framework_jwt.views import ObtainJSONWebToken
 
-from goods.models import SKU
-from goods.serializers import SKUSerializer
-from users import constants
 from . import serializers
 from .models import User
 from verifications.serializers import CheckImageCodeSerialzier
 from .utils import get_user_by_account
+from . import constants
+from goods.models import SKU
+from goods.serializers import SKUSerializer
+from carts.utils import merge_cart_cookie_to_redis
 
 # Create your views here.
 
@@ -140,7 +142,6 @@ class UserDetailView(RetrieveAPIView):
     # 类视图对象还有kwargs属性
 
     serializer_class = serializers.UserDetailSerializer
-
     # 补充通过认证才能访问接口的权限
     permission_classes = [IsAuthenticated]
 
@@ -170,7 +171,6 @@ class EmailView(UpdateAPIView):
 
 class EmailVerifyView(APIView):
     """邮箱验证"""
-
     def get(self, request):
         # 获取token
         token = request.query_params.get('token')
@@ -192,7 +192,6 @@ class AddressViewSet(mixins.CreateModelMixin, mixins.UpdateModelMixin, GenericVi
     """
     serializer_class = serializers.UserAddressSerializer
     permissions = [IsAuthenticated]
-
 
     def get_queryset(self):
         return self.request.user.addresses.filter(is_deleted=False)
@@ -234,7 +233,6 @@ class AddressViewSet(mixins.CreateModelMixin, mixins.UpdateModelMixin, GenericVi
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    # /addresses/1/status
     @action(methods=['put'], detail=True)
     def status(self, request, pk=None, address_id=None):
         """
@@ -258,23 +256,21 @@ class AddressViewSet(mixins.CreateModelMixin, mixins.UpdateModelMixin, GenericVi
 
 
 class UserHistoryView(mixins.CreateModelMixin, GenericAPIView):
-    '''
-    用户历史记录
-    '''
+    """用户历史记录"""
     permission_classes = [IsAuthenticated]
-    serializer_class = serializers.AddUsrHistorySerializer
+    serializer_class = serializers.AddUserHistorySerializer
 
     def post(self, request):
-        '''保存'''
+        """保存"""
         return self.create(request)
 
     def get(self, request):
         user_id = request.user.id
-        # 查询 redis 数据库
+        # 查询redis数据库
         redis_conn = get_redis_connection('history')
         sku_id_list = redis_conn.lrange('history_%s' % user_id, 0, constants.USER_BROWSING_HISTORY_COUNTS_LIMIT)
 
-        # 根据 redis 返回的sku id 查询数据
+        # 根据redis返回的sku id 查询数据
         # SKU.objects.filter(id__in=sku_id_list)
         sku_list = []
         for sku_id in sku_id_list:
@@ -286,6 +282,31 @@ class UserHistoryView(mixins.CreateModelMixin, GenericAPIView):
         return Response(serializer.data)
 
 
+class UserAuthorizationView(ObtainJSONWebToken):
 
+    # def post(self, request, *args, **kwargs):
+    #     # 调用jwt扩展的方法，对用户登录的数据进行验证
+    #     response = super().post(request)
+    #
+    #     # 如果用户登录成功，进行购物车数据合并
+    #     serializer = self.get_serializer(data=request.data)
+    #     if serializer.is_valid():
+    #         # 表示用户登录成功
+    #         user = serializer.validated_data.get("user")
+    #         print(request.COOKIES)
+    #         # 合并购物车
+    #         response = merge_cart_cookie_to_redis(request, response, user)
+    #
+    #     return response
 
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.validated_data.get('user') or request.user
+            print(request.COOKIES)
+            response = merge_cart_cookie_to_redis(request, response, user)
+
+        return response
 
